@@ -3,9 +3,9 @@
 
 from __future__ import unicode_literals
 from docopt import docopt
-from ansible.inventory import Inventory
+from ansible.inventory.manager import InventoryManager
 from ansible.parsing.dataloader import DataLoader
-from ansible.vars import VariableManager
+from ansible.vars.manager import VariableManager
 
 import logging
 import os
@@ -62,15 +62,16 @@ def main(args):
 
     logger.debug(header)
     output = "" + header if header else ""
-    variable_manager = VariableManager()
     loader = DataLoader()
-    inventory = Inventory(loader=loader, variable_manager=variable_manager, host_list=tmp_path)
+    inventory = InventoryManager(loader=loader, sources=tmp_path)
+    variable_manager = VariableManager(loader=loader, inventory=inventory)
 
     for host in inventory.get_hosts():
         host_all_vars = host.get_vars()
-        host_all_vars.update(host.get_group_vars())
+
+        # host_all_vars.update(host.get_group_vars())
         output += "Host %s\n" % host.get_name()
-        output += "%sHostname %s\n" % (indent, host.address)
+        output += "%sHostname %s\n" % (indent, host_all_vars["ansible_host"])
         custom_user = False
 
         for user in ("ansible_ssh_user", "ansible_user"):
@@ -83,6 +84,10 @@ def main(args):
         for port in ("ansible_ssh_port", "ansible_port"):
             if port in host_all_vars:
                 output += "%sPort %d\n" % (indent, host_all_vars[port])
+
+        ssh_key = "ansible_ssh_private_key_file"
+        if ssh_key in host_all_vars:
+            output += "%sIdentityFile %s\n" % (indent, host_all_vars[ssh_key])
 
         output += "\n"
 
